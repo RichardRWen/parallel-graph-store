@@ -7,6 +7,8 @@
 
 #include <parlay/alloc.h>
 
+#include "include/graph.h"
+
 template <size_t ptr_size = 256>
 struct Pointer {
 	static const size_t capacity = ptr_size;
@@ -60,11 +62,16 @@ class SharedGraph {
 public:
 	SharedMemory<ptr_size> *shared_mem;
 	std::deque<std::atomic<Pointer<ptr_size>>> vertices;
+	uint64_t start = 0;
 	
 	SharedGraph(SharedMemory<ptr_size> *_shared_mem, size_t size) : vertices(size), shared_mem(_shared_mem) {
 		for (size_t i = 0; i < size; i++) {
 			vertices.emplace_back(shared_mem->alloc());
 		}
+	}
+
+	Pointer<ptr_size> operator [] (size_t i) {
+		return vertices[i].load(std::memory_order_relaxed);
 	}
 
 	void resize(size_t new_size) { // don't currently support downsizing; also not thread-safe
@@ -127,18 +134,19 @@ public:
 	}
 };
 
+
 template <size_t ptr_size = 256>
 class PointerManager {
 	uint32_t id;
-	SharedGraph<ptr_size> *shared_graph;
+	SharedGraph<ptr_size> *graph;
 	SharedMemory<ptr_size> *shared_mem;
 	//std::deque<Pointer<ptr_size>> free;
-	//THIS std::deque<Pointer<ptr_size>> del;
-	//THAT std::deque<std::time_t> del_times;
+	std::deque<Pointer<ptr_size>> del;
+	std::deque<std::time_t> del_times;
 	std::mutex del_lock;
 	
 public:
-	PointerManager(uint32_t _id, SharedMemory<ptr_size> *_shared_mem, SharedGraph<ptr_size> *_shared_graph, int num_ptrs = 0) : id(_id), shared_graph(_shared_graph), shared_mem(_shared_mem) {
+	PointerManager(uint32_t _id, SharedMemory<ptr_size> *_shared_mem, SharedGraph<ptr_size> *_graph, int num_ptrs = 0) : id(_id), shared_graph(_shared_graph), shared_mem(_shared_mem) {
 		/*for (int i = 0; i < num_ptrs; i++) {
 			Pointer ptr(shared_mem.alloc());
 			free.push_front(ptr);
@@ -153,15 +161,15 @@ public:
 		del_lock.lock();
 		while (true) {
 			for (std::time_t start_time : shared_mem.start_times) {
-				/*THAT if (start_time <= del_times.front()) {
+				if (start_time <= del_times.front()) {
 					del_lock.unlock();
 					return;
-				}*/
+				}
 			}
-			//free.push_front(del.pop_front());
-			//THIS p_free(del.front().data);
-			//THIS del.pop_front();
-			//THAT del_times.pop_front();
+			free.push_front(del.pop_front());
+			p_free(del.front().data);
+			del.pop_front();
+			del_times.pop_front();
 		}
 		del_lock.unlock();
 	}
@@ -181,8 +189,8 @@ public:
 
 	void restore(Pointer<ptr_size> ptr) {
 		del_lock.lock();
-		//THIS del.push_back(ptr);
-		//THAT del_times.push_back(time(NULL));
+		del.push_back(ptr);
+		del_times.push_back(time(NULL));
 		del_lock.unlock();
 	}
 

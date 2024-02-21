@@ -5,7 +5,7 @@
 class GlobalManager;
 template <typename T> struct Pointer;
 
-template <typename T>
+template <typename T> // TODO: make more clear that this type is the index type stored in the edge lists; point also uses T but with a different meaning
 class Graph {
 public:
 	GlobalManager *global_mgr;

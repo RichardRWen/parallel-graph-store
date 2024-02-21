@@ -28,6 +28,7 @@ public:
 template <typename T>
 struct Pointer {
 	// TODO: consider evaluating the overhead of also storing the capacity next to the size
+	// TODO: consider replacing this with a T* instead
 	unsigned char *data;
 
 	Pointer() : data(NULL) {}
@@ -52,13 +53,13 @@ struct Pointer {
 
 template <typename T>
 class PointerManager {
+public:
 	uint32_t id;
 	Graph<T> *graph;
 	GlobalManager *global_mgr;
 	std::deque<Pointer<T>> del; // not thread-safe but in proper operation shouldn't be called in parallel
 	std::deque<std::time_t> del_times;
 	
-public:
 	PointerManager(uint32_t _id, GlobalManager *_global_mgr, Graph<T> *_graph) : id(_id), graph(_graph), global_mgr(_global_mgr) {}
 
 	void start_op() {
